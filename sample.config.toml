@@ -1,0 +1,6 @@
+original_balance = 100000
+original_term = 120
+rate = 0.05
+escrow = 0
+additional = 0
+current_balance = 100000
