@@ -14,7 +14,7 @@ var (
 		"Date", "Principal", "Interest", "Escrow", "Extra", "Total Payment", "Balance",
 	}
 
-	dn = DisplayNumber
+	dn = displayNumber
 )
 
 type Loan struct {
@@ -44,27 +44,58 @@ type AmortizationLoanTotals struct {
 	total_payment float64
 }
 
+type Summary struct {
+	OriginalBalance float64 `mapstructure:"original_balance"`
+	OriginalTerm    int     `mapstructure:"original_term"`
+	Rate            float64 `mapstructure:"rate"`
+	Escrow          float64 `mapstructure:"escrow"`
+	Additional      float64 `mapstructure:"additional"`
+	CurrentBalance  float64 `mapstructure:"current_balance"`
+}
+
+func (s *Summary) Write() {
+	fmt.Println("Loan:", dn(s.OriginalBalance))
+	fmt.Println("Term:", s.OriginalTerm, "months")
+	fmt.Println("Interest Rate:", s.Rate)
+	fmt.Println("Monthly Payment:", dn(s.MonthlyPayment()))
+	fmt.Println("Current Balance:", dn(s.CurrentBalance))
+}
+
+func (s *Summary) MonthlyPayment() (monthlyPayment float64) {
+	term := float64(s.OriginalTerm)
+	monthlyInterestRate := MonthlyInterestRate(s.Rate)
+	monthlyPayment = (s.OriginalBalance * monthlyInterestRate * math.Pow(1+monthlyInterestRate, term)) / (math.Pow(1+monthlyInterestRate, term) - 1)
+	return
+}
+
+type Schedule struct {
+	Loan
+}
+
 func (l *Loan) MonthlyPayment() (monthlyPayment float64) {
 	term := float64(l.OriginalTerm)
-	monthlyPayment = (l.OriginalBalance * l.MonthlyInterestRate() * math.Pow(1+l.MonthlyInterestRate(), term)) / (math.Pow(1+l.MonthlyInterestRate(), term) - 1)
+	monthlyInterestRate := MonthlyInterestRate(l.Rate)
+	monthlyPayment = (l.OriginalBalance * monthlyInterestRate * math.Pow(1+monthlyInterestRate, term)) / (math.Pow(1+monthlyInterestRate, term) - 1)
 	return
 }
 
-func (l *Loan) MonthlyInterestRate() (monthlyInterestRate float64) {
-	monthlyInterestRate = l.Rate / 12
+func MonthlyInterestRate(rate float64) (monthlyInterestRate float64) {
+	monthlyInterestRate = rate / 12
 	return
 }
 
-func (l *Loan) AmortizationSchedule() (schedule []ScheduleRow) {
+func (l *Loan) amortizationSchedule() (schedule []ScheduleRow) {
 	balance := l.CurrentBalance
 	for i := 1; i <= l.OriginalTerm; i++ {
 		month := time.Now().AddDate(0, i, 0).Format("Jan 2006")
 		month = fmt.Sprintf("%s (%d)", month, i)
-		monthlyInterest := l.MonthlyInterestRate() * balance
+		monthlyInterestRate := MonthlyInterestRate(l.Rate)
+		monthlyInterest := monthlyInterestRate * balance
 		monthlyPrincipal := l.MonthlyPayment() - monthlyInterest
 		extra := l.Additional
 		principalExtra := monthlyPrincipal + extra
-		if principalExtra > balance {
+		switch {
+		case principalExtra > balance:
 			if monthlyPrincipal > balance {
 				monthlyPrincipal = balance
 				extra = 0
@@ -73,7 +104,7 @@ func (l *Loan) AmortizationSchedule() (schedule []ScheduleRow) {
 				extra = extra - (principalExtra - balance)
 				balance = 0
 			}
-		} else {
+		default:
 			balance = balance - (monthlyPrincipal + l.Additional)
 		}
 		totalMonthlyPayment := monthlyPrincipal + monthlyInterest + l.Escrow + extra
@@ -94,8 +125,8 @@ func (l *Loan) AmortizationSchedule() (schedule []ScheduleRow) {
 	return
 }
 
-func (l *Loan) AmortizationLoanTotals() (totals AmortizationLoanTotals) {
-	for _, row := range l.AmortizationSchedule() {
+func (l *Loan) amortizationLoanTotals() (totals AmortizationLoanTotals) {
+	for _, row := range l.amortizationSchedule() {
 		totals.principle += row.principal
 		totals.interest += row.interest
 		totals.escrow += row.escrow
@@ -109,7 +140,7 @@ func (l *Loan) PrintAmortizationSchedule() {
 	t := table.NewWriter()
 	t.SetOutputMirror(os.Stdout)
 	t.AppendHeader(AmortizationTableHeaders)
-	for _, row := range l.AmortizationSchedule() {
+	for _, row := range l.amortizationSchedule() {
 		t.AppendRow(table.Row{
 			row.month,
 			dn(row.principal),
@@ -120,7 +151,7 @@ func (l *Loan) PrintAmortizationSchedule() {
 			dn(row.balance),
 		})
 	}
-	totals := l.AmortizationLoanTotals()
+	totals := l.amortizationLoanTotals()
 	t.AppendFooter(table.Row{
 		"",
 		dn(totals.principle),
@@ -133,15 +164,7 @@ func (l *Loan) PrintAmortizationSchedule() {
 	t.Render()
 }
 
-func (l *Loan) PrintSummary() {
-	fmt.Println("Loan:", dn(l.OriginalBalance))
-	fmt.Println("Term:", l.OriginalTerm, "months")
-	fmt.Println("Interest Rate: ", l.Rate)
-	fmt.Println("Monthly Payment: ", dn(l.MonthlyPayment()))
-	fmt.Println("Current Balance: ", dn(l.CurrentBalance))
-}
-
-func DisplayNumber(number float64) (displayNumber string) {
+func displayNumber(number float64) (displayNumber string) {
 	n := toFixed(number, 2)
 	displayNumber = fmt.Sprintf("$%.2f", n)
 	return
