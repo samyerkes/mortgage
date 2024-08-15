@@ -18,15 +18,14 @@ var summaryCmd = &cobra.Command{
 	Long:    `Print a summary of the loan, including the total amount of the loan, the total interest paid, and the total amount paid.`,
 	Aliases: []string{"sum", "info"},
 	Run: func(cmd *cobra.Command, args []string) {
+		var summary loan.Summary
 
-		var l loan.Loan
-
-		err := viper.Unmarshal(&l)
+		err := viper.Unmarshal(&summary)
 		if err != nil {
 			fmt.Println(err)
 		}
 
-		l.PrintSummary()
+		summary.Write()
 	},
 }
 
