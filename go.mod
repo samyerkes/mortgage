@@ -1,6 +1,6 @@
 module mortgage
 
-go 1.22
+go 1.26
 
 require (
 	github.com/jedib0t/go-pretty v4.3.0+incompatible
